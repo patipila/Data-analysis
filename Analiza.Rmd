@@ -1,0 +1,1278 @@
+---
+title: "Analiza"
+author: "Patrycja Piła"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,warning = FALSE,message = FALSE)
+```
+
+```{r include =F}
+getwd()
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(gapminder)
+library(countrycode)
+library(jcolors)
+library(CGPfunctions)
+library( ggrepel)
+library(gridExtra)
+library(gghighlight)
+options(scipen=999)
+```
+
+# Wprowadzanie zmiennych
+
+## HDI
+
+#### Zmienna `hdi` oznacza wskaźnik HDI, czyli syntetyczny miernik opisujący stopień rozwoju społeczno-ekonomicznego poszczególnych krajów.
+
+```{r include =F}
+hdi <- read.csv("./Dane/hdi.csv",sep = ",")
+```
+
+```{r include =F}
+hdi1 <- hdi %>%
+  pivot_longer(
+    cols = starts_with("X"),
+    names_to = "year",
+    names_prefix = "X",
+    values_to = "hdi",
+    values_drop_na = TRUE
+  )%>%
+ filter(year %in% c(seq(1991,2019,2)))
+```
+
+## Długość życia
+
+#### Zmienna `lifExp` oznacza średnią liczbę lat, które przeżyłoby nowo narodzone dziecko, gdyby obecne wzorce umieralności pozostały takie same.
+
+```{r include =F}
+dlzycia <- read.csv(file="./Dane/dlzycia.csv")
+```
+
+
+```{r include =F}
+dlzycia1 <- dlzycia %>%
+  pivot_longer(
+    cols = starts_with("X"),
+    names_to = "year",
+    names_prefix = "X",
+    values_to = "lifExp",
+    values_drop_na = TRUE)%>%
+  filter(year %in% c(seq(1991,2019,2)))
+  
+```
+
+## Śmiertelność dzieci
+
+#### Zmienna `children` oznacza ile dzieci w wieku od 0 do 5 lat umiera w przeliczeniu na 1000 urodzeń.
+
+```{r include =F}
+dzieci <- read.csv("./Dane/dzieci.csv",sep = ",")
+```
+
+```{r include =F}
+dzieci1 <- dzieci %>%
+  pivot_longer(
+    cols = starts_with("X"),
+    names_to = "year",
+    names_prefix = "X",
+    values_to = "children",
+    values_drop_na = TRUE)%>%
+  filter(year %in% c(seq(1991,2019,2)))
+
+```
+
+## PKB per capita
+
+#### Zmienna `income` oznacza Produkt Krajowy Brutto na osobę skorygowany o różnice w sile nabywczej (w dolarach międzynarodowych, ceny stałe z 2017 r., PPP na podstawie ICP z 2017 r.).
+
+
+```{r include =F}
+przychod <- read.csv(file="./Dane/przychod.csv")
+
+for(n in 2:ncol(przychod)){
+  przychod[,n] <- as.character(przychod[,n])
+}
+
+```
+
+
+```{r include =F}
+
+przychod1 <- przychod %>%
+  pivot_longer(
+    cols = starts_with("X"),
+    names_to = "year",
+    names_prefix = "X",
+    values_to = "income",
+    values_drop_na = TRUE)%>%
+ filter(year %in% c(seq(1991,2019,2)))
+
+przychod1$income<-as.numeric(sub("k", "e3",przychod1$income, fixed = TRUE))
+przychod1$income<-as.numeric(sub("M", "e6",przychod1$income, fixed = TRUE))
+
+przychod1$income<-as.numeric(przychod1$income)
+
+```
+
+## Przemysł
+
+#### Zmienna `industry` oznacza procentowy udział przemysłu w tworzeniu PKB.
+
+```{r include =F}
+przemysl <- read.csv("./Dane/przem.csv",sep = ",")
+```
+
+```{r include =F}
+przemysl1 <- przemysl %>%
+  pivot_longer(
+    cols = starts_with("X"),
+    names_to = "year",
+    names_prefix = "X",
+    values_to = "industry",
+    values_drop_na = TRUE)%>%
+  filter(year %in% c(seq(1991,2019,2)))
+
+```
+
+## Rolnictwo
+
+#### Zmienna `agriculture` oznacza procentowy udział rolnictwa w PKB.
+
+```{r include =F}
+rolnictwo <- read.csv(file="./Dane/rol.csv")
+```
+
+
+```{r include =F}
+rolnictwo1 <- rolnictwo %>%
+  pivot_longer(
+    cols = starts_with("X"),
+    names_to = "year",
+    names_prefix = "X",
+    values_to = "agriculture",
+    values_drop_na = TRUE)%>%
+ filter(year %in% c(seq(1991,2019,2)))
+```
+
+## Usługi
+
+#### Zmienna `services` oznacza procentowy udział usługach w PKB.
+
+```{r include =F}
+uslugi <- read.csv(file="./Dane/usl.csv")
+```
+
+
+```{r include =F}
+
+uslugi1 <- uslugi %>%
+  pivot_longer(
+    cols = starts_with("X"),
+    names_to = "year",
+    names_prefix = "X",
+    values_to = "services",
+    values_drop_na = TRUE
+  ) %>%
+  filter(year %in% c(seq(1991,2019,2)))
+  
+```
+
+## Urbanizacja
+
+#### Zmienna `urban`  odnosi się do osób mieszkających na obszarach miejskich określonych przez krajowe urzędy statystyczne wyrażone procentowo do ogólnej liczby ludności.
+
+```{r include =F}
+urbanizacja <- read.csv(file="./Dane/urbanizacja.csv")
+```
+
+
+```{r include =F}
+urbanizacja1 <- urbanizacja %>%
+  pivot_longer(
+    cols = starts_with("X"),
+    names_to = "year",
+    names_prefix = "X",
+    values_to = "urban",
+    values_drop_na = TRUE
+  ) %>%
+  filter(year %in% c(seq(1991, 2019, 2)))
+
+```
+
+# Łączenie zmiennych w jedną tabelę.
+
+```{r include =F}
+dane <- inner_join(urbanizacja1, dlzycia1)
+dane <- inner_join(dane , hdi1)
+dane <- inner_join(dane, dzieci1)
+dane <- inner_join(dane, przemysl1)
+dane <- inner_join(dane, przychod1)
+dane <- inner_join(dane, rolnictwo1)
+dane <- inner_join(dane, uslugi1)
+
+dane$continent <- factor(
+  countrycode(
+    sourcevar = dane[[1]],
+    origin = "country.name",
+    destination = "continent",
+    nomatch = NA
+  )
+)
+
+write.csv
+```
+
+```{r echo = F }
+head(dane)
+```
+
+
+```{r include = F}
+boxplot(dlzycia1$lifExp)
+
+dane %>%
+  filter(year == 2007) %>%
+  ggplot(aes(x = continent, y = lifExp)) +
+  geom_boxplot() +
+  stat_summary(
+    fun = "mean",
+    geom = "point",
+    shape = 3,
+    size = 3,
+    color = "red"
+  ) +
+  geom_jitter(color = "navyblue")
+```
+
+```{r include = F}
+dane %>%
+  filter(year == 2009) %>%
+  ggplot() +
+  geom_point(mapping = aes(x = urban,
+                           y = services),
+             size = 2)
+```
+
+
+```{r include = F}
+dane %>%
+  filter(income < 5000, year == 2011) %>%
+  ggplot() +
+  geom_point(mapping = aes(x = income,
+                           y = agriculture),
+             size = 2)
+
+dane %>%
+  filter(income < 8000, year == 2011) %>%
+  ggplot() +
+  geom_histogram(
+    mapping = aes
+    (x = agriculture),
+    bins = 6,
+    fill = "darkgrey",
+    colour = "black"
+  )
+
+
+```
+
+
+
+# **Pytania**
+
+# **1. Czy PKB per capita ma wpływ na śmiertelność dzieci?**
+
+#### Według mnie tak. Przyjrzyjmy się jak wygląda wykres przedstawiający te dwie zmienne.
+
+```{r}
+dane %>%
+  filter(year == 2007) %>%
+  ggplot() +
+  geom_point(mapping = aes(x = income,
+                           y = children,
+                           col = continent),
+             size = 2,
+             alpha = 0.7) +
+  labs(
+    title = "PKB a śmiertelność dzieci w 2007 roku na świecie",
+    x = "PKB per capita",
+    y = "Śmiertelność dzieci na 1000 urodzeń",
+    color = "Kontynenty"
+  ) +
+  theme_bw() +
+  theme(
+    axis.text = element_text(size = 12),
+    axis.title = element_text(size = 12,
+                              face = "bold"),
+    plot.title = element_text(size = 18,
+                              face = "bold"),
+    legend.title = element_text(size = 14,
+                                face = "bold"),
+    legend.text = element_text(size = 12)
+  )
+
+```
+
+#### Dane na wykresie nie mają zależności liniowej. Żeby sprawdzić występujące zależności wykorzystam współczynnik korelacji, ponieważ nie ogranicza się on tylko do zależności liniowej.
+
+```{r}
+cor(dane$income,dane$children,method = 'spearman')
+```
+
+#### Jak można łatwo zauważyć występują dane o zróżnicowanych wartościach, lecz są one malejące. Dlatego sprawdźmy, jak wygląda wykres na podstawie tych samych danych ale przedstawiony na skali logarytmicznej.
+
+```{r}
+dane %>%
+  filter(year == 2007) %>%
+  select(country, year, income, continent, children) %>%
+  ggplot() +
+  geom_point(mapping = aes(
+    x = log10(income),
+    y = log10(children),
+    col = continent
+  ),
+  size = 3.5,
+  alpha = 0.7) +
+  labs(
+    title = "PKB a śmiertelność dzieci w 2007 roku na świecie",
+    subtitle = "Skala logarytmiczna",
+    x = "PKB per capita",
+    y = "Śmiertelność dzieci na 1000 urodzeń",
+    color = "Kontynenty"
+  ) +
+  theme_bw() +
+  theme(
+    axis.text = element_text(size = 12),
+    axis.title = element_text(size = 12,
+                              face = "bold"),
+    plot.title = element_text(size = 18,
+                              face = "bold"),
+    plot.subtitle =element_text(size = 12),
+    legend.title = element_text(size = 14,
+                                face = "bold"),
+    legend.text = element_text(size = 12)
+  )
+```
+
+#### W tym momencie dużo lepiej widać zależność między tymi danymi. Wraz z wzrostem PKB per capita spada liczba śmierci na 1000 urodzeń.
+
+#### Dla pewności sprawdźmy jeszcze ile wynosi współczynnik korelacji.
+
+
+```{r}
+cor(log10(dane$income), log10(dane$children))
+```
+
+#### Między tymi danymi występuje silna korelacja. Można więc powiedzieć, że są to zmienne odwrotnie proporcjonalne, co potwierdza moją początkową hipotezę.
+
+
+# **2. Czy państwa posiadające niższe PKB w większości specjalizują się w rolnictwie?**
+
+
+#### Na samym początku przyjrzyjmy się jak wygląda średni poziom udziału rolnictwa w PKB na przestrzeni lat z podziałem na kontynenty.
+
+```{r}
+dane %>%
+  select(country, year, continent, agriculture) %>%
+  group_by(continent, year) %>%
+  mutate(agri = mean(agriculture)) %>%
+  ggplot(mapping = aes(
+    x = year,
+    y = agri,
+    col = continent,
+    group = continent
+  )) +
+  geom_line(size = 1.5) +
+  scale_x_discrete(breaks = seq(1991, 2019, 4)) +
+  labs(
+    title = "Średni udział rolnictwa w PKB",
+    x = "Rok",
+    y = "Rolnictwo [%]",
+    color = "Kontynenty"
+  ) +
+  theme_bw() +
+  scale_color_jcolors() +
+  theme_bw() +
+  theme(
+    axis.text = element_text(size = 12),
+    axis.title = element_text(size = 12,
+                              face = "bold"),
+    plot.title = element_text(size = 18,
+                              face = "bold"),
+    legend.title = element_text(size = 14,
+                                face = "bold"),
+    legend.text = element_text(size = 12)
+  )
+     
+```
+
+#### Ewidentnie widać, że w państwach afrykańskich udział rolnictwa jest zdecydowanie większy. Sprawdźmy więc jak wygląda kwestia PKB per capita.
+
+```{r}
+dane %>%
+  select(country, year, continent, income) %>%
+  group_by(continent, year) %>%
+  summarise(inc = mean(income)) %>%
+  ggplot(aes(
+    x = year,
+    y = inc,
+    col = continent,
+    group = continent
+  )) +
+  geom_line(size = 1.2) +
+  scale_x_discrete(breaks = seq(1991, 2019, 4)) +
+  labs(
+    title = "Średnie PKB per capita",
+    x = "Rok",
+    y = "PKB per capita",
+    color = "Kontynenty"
+  ) +
+  theme_bw() +
+  theme(
+    axis.text = element_text(size = 12),
+    axis.title = element_text(size = 12,
+                              face = "bold"),
+    plot.title = element_text(size = 18,
+                              face = "bold"),
+    legend.title = element_text(size = 14,
+                                face = "bold"),
+    legend.text = element_text(size = 12)
+  )
+```
+
+#### Kraje afrykańskie zdecydowanie odbiegają w jego poziomie w porównaniu do reszty świata.
+
+
+```{r}
+dane %>%
+  filter(year == "1991", income < 8000) %>%
+  group_by(continent) %>%
+  ggplot() +
+  geom_point(mapping = aes(x = income,
+                           y = agriculture,
+                           col = continent),
+             size = 2) +
+  labs(
+    title = "PKB per capita a rolnictwo",
+    subtitle = "w 1991 roku",
+    x = "PKB per capita",
+    y = "Rolnictwo [%]",
+    color = "Kontynenty"
+  ) +
+  theme_bw() +
+  theme(
+    axis.text = element_text(size = 12),
+    axis.title = element_text(size = 12,
+                              face = "bold"),
+    plot.title = element_text(size = 18,
+                              face = "bold"),
+    plot.subtitle =element_text(size = 12),
+    legend.title = element_text(size = 14,
+                                face = "bold"),
+    legend.text = element_text(size = 12)
+  )
+```
+
+#### Na powyższym wykresie przedstawione zostały dwie dane: procentowy udział rolnictwa w PKB oraz PKB per capita w danym państwie.
+
+```{r echo= F}
+dane %>%
+  filter(year == "1991", income < 8000) %>%
+  group_by(continent) %>%
+  ggplot() +
+  geom_point(mapping = aes(x = income,
+                           y = agriculture,
+                           col = continent),
+             size = 2) +
+  labs(
+    title = "PKB per capita a rolnictwo",
+    subtitle = "w 1995 roku",
+    x = "PKB per capita",
+    y = "Rolnictwo [%]",
+    color = "Kontynenty"
+  ) +
+  theme_bw() +
+  theme(
+    axis.text = element_text(size = 12),
+    axis.title = element_text(size = 12,
+                              face = "bold"),
+    plot.title = element_text(size = 18,
+                              face = "bold"),
+    plot.subtitle =element_text(size = 12),
+    legend.title = element_text(size = 14,
+                                face = "bold"),
+    legend.text = element_text(size = 12)
+  )+
+gghighlight(agriculture >50 )
+```
+
+#### Punkty kolorowe przedstawiają państwa w których rolnictwo stanowi ponad połowę PKB. Sprawdźmy czy jest to większość państw.
+
+```{r}
+count(dane %>%
+  filter(year == "1991", income < 8000))
+```
+
+#### Wszystkich państw o PKB per capita mniejszym niż 8000 jest 73. 
+
+```{r}
+count(dane %>%
+  filter(year == "1991", income < 8000,agriculture >=50))
+```
+#### Natomiast tych w, których dodatkowo udział rolnictwa w PKB wynosi powyżej 50 % jest 36.
+#### Zatem jest to ponad połowa wszystkich państw.
+
+#### W Afryce państw o niskim PKB per capita znajduje się (lata 1991/1995): 
+
+```{r echo = F}
+count(dane %>%
+  filter(year == "1991",income <8000,continent == "Africa"))
+
+count(dane %>%
+  filter(year == "1995",income <8000,continent == "Africa"))
+```
+
+#### W Azji państw o niskim PKB per capita znajduje się (lata 1991/1995):
+
+```{r echo = F}
+count(dane %>%
+  filter(year == "1991",income <8000,continent == "Asia"))
+
+count(dane %>%
+  filter(year == "1995",income <8000,continent == "Asia"))
+```
+
+#### W Amerykach państw o niskim PKB per capita znajduje się (lata 1991/1995):
+
+```{r echo = F}
+count(dane %>%
+  filter(year == "1991",income <8000,continent == "Americas"))
+
+count(dane %>%
+  filter(year == "1995",income <8000,continent == "Americas"))
+```
+
+#### W Europie państw o niskim PKB per capita znajduje się (lata 1991/1995):
+
+```{r echo = F}
+count(dane %>%
+  filter(year == "1991",income <8000,continent == "Europe"))
+
+count(dane %>%
+  filter(year == "1995",income <8000,continent == "Europe"))
+```
+
+#### Najwięcej państw z niskim PKB znajduje się na kontynencie afrykańskim. Co samo w sobie nie jest zaskoczeniem. Dosyć ciekawą rzeczą dla mnie jest pojawienie się większej liczby państw europejskich o niższym poziomie PKB w ciągu zaledwie 4 lat. Tym jednak zajmę się już w następnym pytaniu.
+
+#### Wiemy już że Afryka przoduje w państwach zarówno o dużym udziale rolnictwa w PKB, jak i tych o niskim PKB per capita. Zatem wróćmy do pierwotnego pytania.
+
+```{r}
+dane %>%
+  filter(year == 1991) %>%
+  ggplot() +
+  geom_point(mapping = aes(x = income,
+                           y = agriculture,
+                           col = continent),
+             size = 2) +
+  labs(
+    title = "PKB per capita a rolnictwo",
+    subtitle = "w 1991 roku",
+    x = "PKB per capita",
+    y = "Rolnictwo [%]",
+    color = "Kontynenty"
+  ) +
+  theme_bw() +
+  theme(
+    axis.text = element_text(size = 12),
+    axis.title = element_text(size = 12,
+                              face = "bold"),
+    plot.title = element_text(size = 18,
+                              face = "bold"),
+    plot.subtitle = element_text(size = 18),
+    legend.title = element_text(size = 14,
+                                face = "bold"),
+    legend.text = element_text(size = 12)
+  )
+
+
+cor(dane$income,dane$agriculture,method = "spearman")
+```
+
+#### Zarówno kształt wykresu jak i współczynnik korelacji spearmana obrazują, iż PKB per capita ma wpływ na procentowy udział rolnictwa w gospodarce.
+
+```{r}
+roln<- dane%>%
+  select(country,year,continent,agriculture,income)%>%
+  filter(income <5000,year ==1991)
+
+roln
+
+mean(roln$agriculture)
+```
+
+#### Jak widać średni procentowy udział sektora rolnictwa w gospodarce wynosi ponad 58% więc można stwierdzić, że państwa posiadające niższe PKB per capita w większości specjalizują się w rolnictwie.
+
+#### Biorąc to wszystko pod uwagę mogę stwierdzić, że **państwa posiadające niższe PKB w większości specjalizują się w rolnictwie**
+
+
+# **3. Jak wyglądała struktura gospodarki w krajach europejskich z niskim PKB per capita?**
+
+#### Próbując odpowiedzieć na poprzednie pytanie natknęłam się na dość ciekawą informację o tym, że w Europie zwiększyła się w ciągu 4 lat liczba państw o niskim PKB per capita. 
+
+```{r}
+dane %>%
+  filter(income < 8000, continent == "Europe") %>%
+  ggplot(aes(year, income, col = country)) +
+  geom_point(size = 3) +
+  geom_text_repel(aes(label = country), color = "black") +
+  labs(
+    title = "Kraje europejskie z niskim PKB per capita",
+    x = "Rok",
+    y = "PKB per capita",
+    color = "Kraje"
+  ) +
+  scale_x_discrete(breaks = seq(1991, 2019, 4)) +
+  theme_bw() +
+  theme(
+    axis.text = element_text(size = 12),
+    axis.title = element_text(size = 12,
+                              face = "bold"),
+    plot.title = element_text(size = 18,
+                              face = "bold"),
+    legend.title = element_text(size = 14,
+                                face = "bold"),
+    legend.text = element_text(size = 12)
+  )
+```
+
+#### Co ciekawe w Europie na przestrzeni lat 1991 - 2019 było tylko 6 państw o PKB per capita niższym niż 8000. Wszystkie jednak po 2009 r. przekroczyły ten poziom. 
+
+#### Zobaczmy, jak zmieniało się PKB per capita tych państw na przestrzeni lat
+
+```{r}
+dane %>%
+  mutate(rok = as.factor(year),
+         PKB = income) %>%
+  filter(country %in% c("Albania", "Belarus",
+                        "Moldova", "Serbia", "Ukraine"),
+         rok %in% c(seq(1991, 2019, 4))) %>%
+  select(rok, kraj = country, PKB) %>%
+  as.data.frame() %>%
+  newggslopegraph(
+    Times = rok,
+    Measurement = PKB,
+    Grouping = kraj,
+    Title = "Kraje europejskie z niskim PKB per capita",
+    SubTitle = "",
+    Caption = NULL,
+    LineThickness = 1.25,
+    LineColor = c("red", rep("lightgrey", 5)),
+    DataTextSize = 2.75,
+    DataTextColor = "darkgrey"
+  )
+
+```
+
+#### Na czerwono została przedstawiona Albania, która była jedynym państwem europejskim w 1991 roku posiadającym PKB na poziomie niższym niż 8000.
+
+#### Od 1991 do 1995 roku nastąpił wyraźny spadek wysokości PKB per capita. W Ukrainie, Białorusi, Mołdawii i Albanii było to spowodowane upadkiem ZSRR i następującymi po tym zmianami, natomiast w Serbii rozpadem Jugosławii. Interesujące jest to, że Albania jako państwo post-komunistyczne nie zanotowało spadku PKB per capita, lecz ciągle był zwiększany jego poziom. Mogło mieć to związek z tym, iż ona jednym z najbardziej represyjnych względem społeczeństwa państw świata. 
+
+#### Zajmijmy się gospodarką. 
+
+### **ROLNICTWO**
+
+```{r }
+dane %>%
+  filter(
+    year %in% c(1995, 2003),
+    country %in% c("Albania", "Belarus",
+                   "Moldova", "Serbia", "Ukraine")
+  ) %>%
+  ggplot(aes(x = agriculture, y = reorder(country, -agriculture))) +
+  geom_line() +
+  geom_point(aes(color = year), size = 4) +
+  theme(legend.position = "right") +
+  labs(
+    title = "Udział rolnictwa w PKB",
+    subtitle = "1995- 2003 roku",
+    x = "Rolnictwo [%]",
+    y = "Państwa",
+    color = "Rok"
+  ) +
+  theme_bw() +
+  theme(
+    axis.text = element_text(size = 12),
+    axis.title = element_text(size = 12,
+                              face = "bold"),
+    plot.title = element_text(size = 18,
+                              face = "bold"),
+    plot.subtitle = element_text(size = 12),
+    legend.title = element_text(size = 14,
+                                face = "bold"),
+    legend.text = element_text(size = 12)
+  )
+
+
+```
+
+#### Wszystkie państwa zanotowały spadek udziału rolnictwa w PKB
+
+### **PRZEMYSŁ**
+
+```{r}
+dane %>%
+  filter(
+    year %in% c(1995, 2003),
+    country %in% c("Albania", "Belarus",
+                   "Moldova", "Serbia", "Ukraine")
+  ) %>%
+  ggplot(aes(x = industry, y = reorder(country,-industry))) +
+  geom_line() +
+  geom_point(aes(color = year), size = 4) +
+  theme(legend.position = "right") +
+  labs(
+    title = "Udział przemysłu w PKB",
+    subtitle = "1995- 2003 roku",
+    x = "Przemysł [%]",
+    y = "Państwa",
+    color = "Rok"
+  ) +
+  theme_bw() +
+  theme(
+    axis.text = element_text(size = 12),
+    axis.title = element_text(size = 12,
+                              face = "bold"),
+    plot.title = element_text(size = 18,
+                              face = "bold"),
+    plot.subtitle = element_text(size = 12),
+    legend.title = element_text(size = 14,
+                                face = "bold"),
+    legend.text = element_text(size = 12)
+  )
+
+
+```
+
+#### Wojna domowa 1990–95 oraz embargo ONZ nałożone na nową Serbię spowodowały głęboki kryzys gospodarczy i mogły być przyczyną braku danych na temat przemysłu w 1995 roku. Pozostałe państwa oprócz Mołdawii zmniejszyły udział przemysłu w PKB
+
+### **USŁUGI**
+
+```{r}
+dane %>%
+  filter(
+    year %in% c(1995, 2003),
+    country %in% c("Albania", "Belarus",
+                   "Moldova", "Serbia", "Ukraine")
+  ) %>%
+  ggplot(aes(x = services, y = reorder(country,-services))) +
+  geom_line() +
+  geom_point(aes(color = year), size = 4) +
+  theme(legend.position = "right") +
+  labs(
+    title = "Udział usług w PKB",
+    subtitle = "1995- 2003 roku",
+    x = "Usługi [%]",
+    y = "Państwa",
+    color = "Rok"
+  ) +
+  theme_bw() +
+  theme(
+    axis.text = element_text(size = 12),
+    axis.title = element_text(size = 12,
+                              face = "bold"),
+    plot.title = element_text(size = 18,
+                              face = "bold"),
+    plot.subtitle = element_text(size = 12),
+    legend.title = element_text(size = 14,
+                                face = "bold"),
+    legend.text = element_text(size = 12)
+  )
+
+```
+
+#### Wszystkie państwa zwiększyły udział usług w PKB.
+
+#### Struktura gospodarki w krajach europejskich z niskim PKB per capita wyglądała dość podobnie. Zmniejszał się udział rolnictwa i przemysłu natomiast wzrosło znaczenie usług. Te zmiany doprowadziły do tego, że w 2009 roku żadne z państw europejskich nie miało PKB per capita mniejszego niż 8000.
+
+
+# **4. Czy HDI w analizowanych państwach europejskich o niskim PKB per capita wykazywało większą dynamikę zmian niż rozwinięte kraje europejskie?**
+
+```{r echo=FALSE}
+dane %>%
+  filter(
+    country %in% c(
+      "Albania",
+      "Belarus",
+      "Moldova",
+      "Serbia",
+      "Ukraine",
+      "Italy",
+      "France",
+      "Sweden"
+    )
+  ) %>%
+  ggplot(aes(
+    x = year,
+    y = hdi,
+    group = country,
+    col = country
+  )) +
+  labs(
+    title = "HDI w wybranych państwach europejskich",
+    x = "Rok",
+    y = "HDI",
+    color = "Kraj"
+  )+
+  geom_line() +
+  scale_x_discrete(breaks = seq(1991, 2019, 4)) +
+  theme_bw() +
+  theme(
+    axis.text = element_text(size = 12),
+    axis.title = element_text(size = 12,
+                              face = "bold"),
+    plot.title = element_text(size = 18,
+                              face = "bold"),
+    legend.title = element_text(size = 14,
+                                face = "bold"),
+    legend.text = element_text(size = 12)
+  ) 
+
+```
+
+
+#### Wskaźnik HDI ma większe wartości przez cały badany okres dla państw rozwiniętych.
+
+```{r}
+dane %>%
+  filter(
+    country %in% c(
+      "Albania",
+      "Belarus",
+      "Moldova",
+      "Serbia",
+      "Ukraine",
+      "Italy",
+      "France",
+      "Sweden"
+    )
+  ) %>%
+  ggplot(aes(
+    x = year,
+    y = hdi,
+    group = country,
+    col = country
+  )) +
+  labs(
+    title = "HDI w wybranych państwach europejskich",
+    x = "Rok",
+    y = "HDI",
+    color = "Kraj"
+  )+
+  geom_line() +
+  scale_x_discrete(breaks = seq(1991, 2019, 4)) +
+  theme_bw() +
+  theme(
+    axis.text = element_text(size = 12),
+    axis.title = element_text(size = 12,
+                              face = "bold"),
+    plot.title = element_text(size = 18,
+                              face = "bold"),
+    legend.title = element_text(size = 14,
+                                face = "bold"),
+    legend.text = element_text(size = 12)
+  ) + gghighlight(country %in% c("Albania",
+      "Belarus",
+      "Moldova",
+      "Serbia",
+      "Ukraine"), label_key = country)+
+ geom_abline(slope = 0,
+              intercept = 0.78,
+              color = "blue") 
+```
+
+#### Na kolejnym wykresie znajduje się linia przedstawiająca początkowy poziom wskaźnika HDI w krajach rozwiniętych. Państwa z niższym PKB per capita (są to linie kolorowe) po 20 latach znalazły się na podobnym poziomie. 
+
+#### Zbadajmy wskaźnik dynamiki HDI wybranych państw.
+
+#### Jest to iloraz wielkości wskaźnika HDI danego obszaru w roku końcowym i wielkości wskaźnika HDI tego obszaru w roku początkowym pomnożony przez 100. Pokażę obliczenie na jednym przykładzie, reszta działa analogicznie.
+
+#### Albania: 
+
+```{r}
+Albania0 <-as.numeric( dane %>%
+  filter(country == "Albania",year == 1991 )%>%
+  select(hdi))
+
+Albania1 <- as.numeric(dane %>%
+  filter(country == "Albania",year == 2019 )%>%
+  select(hdi))
+
+(alb<-(Albania1/Albania0)*100)
+```
+#### Białoruś: 
+
+```{r echo = F}
+Belarus0 <-as.numeric( dane %>%
+  filter(country == "Belarus",year == 1995 )%>%
+  select(hdi))
+
+Belarus1 <- as.numeric(dane %>%
+  filter(country == "Belarus",year == 2019 )%>%
+  select(hdi))
+
+(bel<-(Belarus1/Belarus0)*100)
+```
+
+#### Mołdawia:
+
+```{r echo = F}
+Moldova0 <-as.numeric( dane %>%
+  filter(country == "Moldova",year == 1991 )%>%
+  select(hdi))
+
+Moldova1 <- as.numeric(dane %>%
+  filter(country == "Moldova",year == 2019 )%>%
+  select(hdi))
+
+(mol<-(Moldova1/Moldova0)*100)
+```
+
+#### Serbia:
+
+```{r echo = F}
+Serbia0 <-as.numeric( dane %>%
+  filter(country == "Serbia",year == 1991 )%>%
+  select(hdi))
+
+Serbia1 <- as.numeric(dane %>%
+  filter(country == "Serbia",year == 2019 )%>%
+  select(hdi))
+
+(ser<-(Serbia1/Serbia0)*100)
+```
+
+#### Ukraina: 
+
+```{r echo = F}
+Ukraine0 <-as.numeric( dane %>%
+  filter(country == "Ukraine",year == 1991 )%>%
+  select(hdi))
+
+Ukraine1 <- as.numeric(dane %>%
+  filter(country == "Ukraine",year == 2019 )%>%
+  select(hdi))
+
+(ukr<-(Ukraine1/Ukraine0)*100)
+```
+
+#### Włochy: 
+
+```{r echo = F}
+Italy0 <-as.numeric( dane %>%
+  filter(country == "Italy",year == 1991 )%>%
+  select(hdi))
+
+Italy1 <- as.numeric(dane %>%
+  filter(country == "Italy",year == 2019 )%>%
+  select(hdi))
+
+(itl<-(Italy1/Italy0)*100)
+```
+
+#### Francja: 
+
+```{r echo = F}
+France0 <-as.numeric( dane %>%
+  filter(country == "France",year == 1991 )%>%
+  select(hdi))
+
+France1 <- as.numeric(dane %>%
+  filter(country == "France",year == 2019 )%>%
+  select(hdi))
+
+(fra<-(France1/France0)*100)
+```
+
+#### Szwecja: 
+
+```{r echo = F}
+Sweden0 <-as.numeric( dane %>%
+  filter(country == "Sweden",year == 1991 )%>%
+  select(hdi))
+
+Sweden1 <- as.numeric(dane %>%
+  filter(country == "Sweden",year == 2019 )%>%
+  select(hdi))
+
+(swe<- (Sweden1/Sweden0)*100)
+```
+#### Średni wskaźnik dynamiki HDI dla państw o niskim PKB per capita wynosi:
+
+```{r}
+mean(alb, ukr,ser,bel,mol)
+```
+
+#### Średni wskaźnik dynamiki HDI dla państw o wysokim PKB per capita wynosi:
+
+```{r}
+mean(fra,itl,swe)
+```
+
+#### Zatem można stwierdzić, że **HDI w analizowanych państwach europejskich o niskim PKB per capita wykazywało większą dynamikę zmian niż rozwinięte kraje europejskie**
+
+
+# **5. Czy w państwach z wyższym wskaźnikiem urbanizacji większość jest zatrudniona w usługach ?**
+
+#### Aby zbadać tą hipotezę przyjmijmy, że wysoki wskaźnik urbanizacji występuje powyżej 75%
+
+```{r}
+dane %>%
+  filter(year == 2019, urban > 75) %>%
+  select(country, year, services, urban, continent) %>%
+  ggplot() +
+  geom_point(
+    mapping = aes(x = services, y = urban, col = continent),
+    size = 3.5,
+    alpha = 0.7
+  ) +
+  labs(
+    title = "Zależność między usługami a urbanizacją",
+    subtitle = "w 2019 roku",
+    x = "Usługi [%]",
+    y = "Urbanizacja [%]",
+    color = "Kontynent"
+  ) +
+  theme_bw() +
+  theme(
+    axis.text = element_text(size = 12),
+    axis.title = element_text(size = 12,
+                              face = "bold"),
+    plot.title = element_text(size = 18,
+                              face = "bold"),
+    plot.subtitle = element_text(size = 12),
+    legend.title = element_text(size = 14,
+                                face = "bold"),
+    legend.text = element_text(size = 12)
+  ) + gghighlight(services > 50, label_key = country)
+```
+
+#### Jak widać państwa, które posiadają wskaźnik urbanizacji na poziomie powyżej 75% procentowy udział usług w PKB wynosi ponad 50%.
+Zatem można stwierdzić, że **w państwach z wyższym wskaźnikiem urbanizacji większość jest zatrudniona w usługach**
+
+
+```{r echo = F}
+dane %>%
+  filter(year == 2019, urban > 75) %>%
+  select(country, year, services, urban, continent) %>%
+  ggplot() +
+  geom_point(
+    mapping = aes(x = services, y = urban, col = continent),
+    size = 3.5,
+    alpha = 0.7
+  ) +
+  labs(
+    title = "Zależność między usługami a urbanizacją",
+    subtitle = "w 2019 roku",
+    x = "Usługi [%]",
+    y = "Urbanizacja [%]",
+    color = "Kontynent"
+  ) +
+  theme_bw() +
+  theme(
+    axis.text = element_text(size = 12),
+    axis.title = element_text(size = 12,
+                              face = "bold"),
+    plot.title = element_text(size = 18,
+                              face = "bold"),
+    plot.subtitle = element_text(size = 12),
+    legend.title = element_text(size = 14,
+                                face = "bold"),
+    legend.text = element_text(size = 12)
+  ) + gghighlight(services < 50, label_key = country)
+```
+
+#### Jedynym państwem, które nie potwierdza mojej hipotezy jest Katar.
+
+
+# **6. Czy w państwach z większą śmiertelnością dzieci większość PKB wytwarzana jest w rolnictwie ?**
+
+#### Sprawdźmy w jakich państwach występuje największa śmiertelność dzieci.
+
+```{r}
+dane %>%
+  select(country, year, continent, children) %>%
+  group_by(continent, year) %>%
+  summarise(inc = mean(children)) %>%
+  ggplot(aes(
+    x = year,
+    y = inc,
+    col = continent,
+    group = continent
+  )) +
+  geom_line(size=1) +
+  scale_x_discrete(breaks = seq(1991, 2019, 4)) +
+  labs(
+    title = "Śmiertelność dzieci",
+    x = "Rok",
+    y = "Śmiertelność dzieci na 1000 urodzeń",
+    color = "Kontynenty"
+  ) +
+  theme_bw() +
+  theme(
+    axis.text = element_text(size = 12),
+    axis.title = element_text(size = 12,
+                              face = "bold"),
+    plot.title = element_text(size = 18,
+                              face = "bold"),
+    legend.title = element_text(size = 14,
+                                face = "bold"),
+    legend.text = element_text(size = 12)
+  )
+
+```
+```{r}
+(dane%>%
+  filter(children>60) %>%
+   select(country,year,continent,agriculture))
+```
+
+#### Okazuje się, że są to państwa: Afganistan, Azerbejdżan, Burundi, Bangladesz, Boliwia, Kamerun, Ghana i Indie
+
+
+```{r include=FALSE}
+c("Afghanistan","Angola","Azerbaijan","Burundi","Bangladesh","Bolivia","Cameroon","Ghana","India")
+```
+
+
+```{r}
+dane %>%
+  filter(year == 2007,
+    country %in% c(
+      "Afghanistan",
+      "Azerbaijan",
+      "Burundi",
+      "Bangladesh",
+      "Bolivia",
+      "Cameroon",
+      "Ghana",
+      "India"
+    )
+  ) %>%
+  ggplot(aes(x = children, y = agriculture, col = country)) +
+  geom_point(size = 2) +
+  labs(
+    title = "Rolnictwo a śmiertelność dzieci",
+    subtitle = "w 1991",
+    x = "Śmiertelność dzieci na 1000 urodzeń",
+    y = "Rolnictwo [%]",
+    color = "Kraj"
+  ) +
+  theme_bw() +
+  theme(
+    axis.text = element_text(size = 12),
+    axis.title = element_text(size = 12,
+                              face = "bold"),
+    plot.title = element_text(size = 18,
+                              face = "bold"),
+    plot.subtitle = element_text(size=12),
+    legend.title = element_text(size = 14,
+                                face = "bold"),
+    legend.text = element_text(size = 12)
+  )+gghighlight(agriculture>=50)
+```
+
+#### Im większy jest udział rolnictwa w PKB tym większa jest liczba śmierci dzieci na 1000 urodzeń. Zatem można stwierdzić, że **w państwach z większą śmiertelnością dzieci większość PKB wytwarzana jest w rolnictwie**
+
+
+# 7. **Czy praca fizyczna ma wpływ na długość życia?**
+
+#### Praca fizyczna oznacza pracę w rolnictwie. 
+
+```{r}
+dane %>%
+  filter(year == 1991) %>%
+  ggplot() +
+  geom_point(
+    mapping = aes(x = lifExp,
+                  y = agriculture),
+    color = "red",
+    alpha = 0.5,
+    size = 2
+  ) +
+  labs(title = "Rolnictwo a długość życia",
+       subtitle = "w 2007 roku",
+       x = "Długość życia",
+       y = "Rolnictwo [%]", )+
+  theme_bw() +
+  theme(
+    axis.text = element_text(size = 12),
+    axis.title = element_text(size = 12,
+                              face = "bold"),
+    plot.subtitle = element_text(size = 12),
+    plot.title = element_text(size = 18,
+                              face = "bold"),
+    legend.title = element_text(size = 14,
+                                face = "bold"),
+    legend.text = element_text(size = 12)
+  ) 
+
+```
+
+#### Na wykresie można zauważyć, że gdy rośnie oczekiwana długość życia maleje udział rolnictwa w PKB. Dla pewności sprawdźmy jeszcze, ile wynosi korelacja między tymi danymi.
+
+```{r}
+cor(dane$agriculture,dane$lifExp,)
+```
+#### Korelacja jest dość silna. Można więc uznać, że **praca fizyczna ma wpływ na długość życia**
+
+
+# **8. Jak zmieniła się przeciętna śmiertelności dzieci?**
+
+```{r message=FALSE}
+dane %>%
+  filter(year %in% c(1991, 2017)) %>%
+  select(country, year, children, continent) %>%
+  spread(year, children) %>%
+  rename(sm_dz_1991 = "1991",
+        sm_dz_2007 = "2017") %>%
+  ggplot() +
+  geom_point(
+    mapping = aes(x = sm_dz_1991, y = sm_dz_2007, col = continent),
+    size = 3.5,
+    alpha = 0.7
+  ) +
+  geom_abline(slope = 1,
+              intercept = 0,
+              color = "grey") +
+  labs(
+    title = "Zmiana śmietelnośći dzieci na swiecie",
+    x = "Przecietna śmietelnośći dzieci w 1991 roku",
+    y = "Przecietna śmietelnośći dzieci w 2017 roku",
+    color = "Kontynent"
+  ) +
+  ylim(0, 350) +
+  xlim(0, 350) +
+  scale_color_brewer(palette = "Set1") +
+  scale_x_discrete(breaks = seq(1991, 2019, 4)) +
+  theme_bw() +
+  theme(
+    axis.text = element_text(size = 12),
+    axis.title = element_text(size = 12,
+                              face = "bold"),
+    plot.title = element_text(size = 18,
+                              face = "bold"),
+    legend.title = element_text(size = 14,
+                                face = "bold"),
+    legend.text = element_text(size = 12)
+  ) 
+
+```
+
+#### **Przeciętna liczba śmierci dzieci na 1000 urodzeń w przeciągu lat zmalała.**   
+
